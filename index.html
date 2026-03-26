@@ -119,6 +119,8 @@ header {
   display: flex; align-items: center; justify-content: center;
   flex-direction: column; gap: 10px;
   color: var(--text3); font-size: 11px; letter-spacing: .06em;
+  pointer-events: none;
+  z-index: 2;
 }
 .spinner {
   width: 18px; height: 18px;
@@ -128,11 +130,12 @@ header {
   animation: spin .8s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
-#map-loading.gone { display: none; }
+#map-loading.gone { display: none; pointer-events: none; }
 #map-error {
   position: absolute; inset: 0;
   display: none; align-items: center; justify-content: center;
   flex-direction: column; gap: 8px;
+  pointer-events: none;
   text-align: center; padding: 2rem; color: var(--text2); font-size: 12px;
 }
 #map-error.shown { display: flex; }
@@ -465,6 +468,7 @@ function buildMap(world) {
     })
     .on('click', (event, d) => {
       const c = getConfed(d);
+      console.log('clicked country:', d.properties && d.properties.ISO_A3, '→ confed:', c);
       if (c) select(c);
     });
 }
