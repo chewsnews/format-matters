@@ -336,9 +336,10 @@ const CONFED = {
   TJK:'afc',THA:'afc',TLS:'afc',TKM:'afc',ARE:'afc',UZB:'afc',VNM:'afc',
   YEM:'afc',ISR:'afc',HKG:'afc',MAC:'afc',
   // OFC
-  ASM:'ofc',AUS:'ofc',COK:'ofc',FJI:'ofc',PYF:'ofc',GUM:'ofc',KIR:'ofc',
+  COK:'ofc',FJI:'ofc',PYF:'ofc',GUM:'ofc',KIR:'ofc',
   MHL:'ofc',FSM:'ofc',NRU:'ofc',NCL:'ofc',NZL:'ofc',NIU:'ofc',MNP:'ofc',
   PLW:'ofc',PNG:'ofc',WSM:'ofc',SLB:'ofc',TON:'ofc',TUV:'ofc',VUT:'ofc',
+  ASM:'ofc',
 };
 
 const COLORS = {
@@ -467,6 +468,8 @@ const NUMERIC = {
   634:'afc',682:'afc',702:'afc',410:'afc',144:'afc',760:'afc',158:'afc',
   762:'afc',764:'afc',626:'afc',795:'afc',784:'afc',860:'afc',704:'afc',
   887:'afc',376:'afc',344:'afc',446:'afc',36:'afc',
+  // AFC ISO codes — add Australia
+  AUS:'afc',
   // OFC — remove Australia (36), keep rest
   554:'ofc',598:'ofc',242:'ofc',90:'ofc',548:'ofc',882:'ofc',
   776:'ofc',798:'ofc',583:'ofc',584:'ofc',585:'ofc',520:'ofc',316:'ofc',
@@ -553,9 +556,16 @@ function renderZoomed(confedId) {
   document.getElementById('back-btn').classList.add('visible');
   document.getElementById('zoom-hint').textContent = 'Hover over a country · Click to explore';
 
+  // UEFA gets a clipped view — just continental Europe, no Russia's far east or overseas territories
+  const UEFA_CLIP = { type: 'Feature', geometry: { type: 'Polygon', coordinates: [[
+    [-25, 34], [45, 34], [45, 72], [-25, 72], [-25, 34]
+  ]]}, properties: {} };
+
   // Build a GeoJSON collection of just this confederation's features
   const features = worldCache.features.filter(d => getConfed(d) === confedId);
-  const collection = { type: 'FeatureCollection', features };
+  const collection = confedId === 'uefa'
+    ? UEFA_CLIP
+    : { type: 'FeatureCollection', features };
 
   const pad = 20;
   projFn = d3.geoNaturalEarth1().fitExtent([[pad, pad],[W - pad, H - pad]], collection);
