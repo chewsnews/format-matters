@@ -503,19 +503,18 @@ const ISO_FROM_NAME = {
   'Andorra':'AND','San Marino':'SMR','Faroe Islands':'FRO',
 };
 
-
+function getConfed(d) {
   if (!d.properties) return null;
   const p = d.properties;
-  // Try multiple property names in order of reliability
-  const candidates = [
-    p.ISO_A3, p.ISO_A3_EH, p.ADM0_A3, p.ADM0_A3_US,
-    p.iso_a3, p.adm0_a3, p.SOVEREIGNT && ISO_FROM_NAME[p.SOVEREIGNT],
-    p.NAME && ISO_FROM_NAME[p.NAME],
-  ];
-  for (const iso of candidates) {
+  // Try multiple ISO property names in order of reliability
+  const isos = [p.ISO_A3, p.ISO_A3_EH, p.ADM0_A3, p.ADM0_A3_US, p.iso_a3, p.adm0_a3];
+  for (const iso of isos) {
     if (iso && iso !== '-99' && CONFED[iso]) return CONFED[iso];
   }
-  // fallback to numeric for world-atlas compatibility
+  // Fallback: match by country name
+  const name = p.SOVEREIGNT || p.NAME || p.name || '';
+  if (name && ISO_FROM_NAME[name] && CONFED[ISO_FROM_NAME[name]]) return CONFED[ISO_FROM_NAME[name]];
+  // Fallback: numeric ID
   const numId = d.id ? parseInt(d.id) : null;
   if (numId && NUMERIC[numId]) return NUMERIC[numId];
   return null;
