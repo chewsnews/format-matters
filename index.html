@@ -306,7 +306,7 @@ const CONFED = {
   LUX:'uefa',MLT:'uefa',MDA:'uefa',MNE:'uefa',NLD:'uefa',MKD:'uefa',NOR:'uefa',
   POL:'uefa',PRT:'uefa',ROU:'uefa',RUS:'uefa',SMR:'uefa',SRB:'uefa',SVK:'uefa',
   SVN:'uefa',ESP:'uefa',SWE:'uefa',CHE:'uefa',TUR:'uefa',UKR:'uefa',GBR:'uefa',
-  KSV:'uefa',
+  KSV:'uefa',XKX:'uefa',
   // CONCACAF
   ATG:'concacaf',BHS:'concacaf',BRB:'concacaf',BLZ:'concacaf',CAN:'concacaf',
   CRI:'concacaf',CUB:'concacaf',DMA:'concacaf',DOM:'concacaf',SLV:'concacaf',
@@ -314,7 +314,7 @@ const CONFED = {
   MEX:'concacaf',NIC:'concacaf',PAN:'concacaf',PRI:'concacaf',KNA:'concacaf',
   LCA:'concacaf',VCT:'concacaf',SUR:'concacaf',TTO:'concacaf',USA:'concacaf',
   GRL:'concacaf',BMU:'concacaf',CYM:'concacaf',VGB:'concacaf',TCA:'concacaf',
-  CUW:'concacaf',ABW:'concacaf',
+  CUW:'concacaf',ABW:'concacaf',GUF:'concacaf',GUY:'concacaf',
   // CONMEBOL
   ARG:'conmebol',BOL:'conmebol',BRA:'conmebol',CHL:'conmebol',COL:'conmebol',
   ECU:'conmebol',PRY:'conmebol',PER:'conmebol',URY:'conmebol',VEN:'conmebol',
@@ -475,12 +475,18 @@ const NUMERIC = {
 
 // ── MAP ───────────────────────────────────────────────────────────────
 function getConfed(d) {
-  // world-atlas countries-110m uses numeric UN M49 ids
+  if (!d.properties) return null;
+  // Natural Earth GeoJSON uses ISO_A3 and ISO_A3_EH
+  const iso = d.properties.ISO_A3
+    || d.properties.ISO_A3_EH
+    || d.properties.ADM0_A3
+    || d.properties.iso_a3
+    || '';
+  if (iso && CONFED[iso]) return CONFED[iso];
+  // fallback to numeric for world-atlas compatibility
   const numId = d.id ? parseInt(d.id) : null;
   if (numId && NUMERIC[numId]) return NUMERIC[numId];
-  // fallback: try ISO string properties
-  const iso = (d.properties && (d.properties.ISO_A3 || d.properties.iso_a3 || d.properties.ADM0_A3)) || '';
-  return CONFED[iso] || null;
+  return null;
 }
 
 // ── ZOOM BOUNDS per confederation (lon1, lat1, lon2, lat2) ────────────
@@ -497,8 +503,8 @@ let zoomed = false;
 let worldCache = null;
 let svgSel, pathFn, projFn, W, H;
 
-function buildMap(world) {
-  worldCache = world;
+function buildMap(geojson) {
+  worldCache = geojson;
   document.getElementById('map-loading').classList.add('gone');
   const wrap = document.getElementById('map-wrap');
   W = Math.max(wrap.clientWidth,  wrap.offsetWidth,  500);
@@ -571,8 +577,8 @@ function drawMap(world, isZoomed, activeConfed) {
     });
   }
 
-  // Countries
-  const features = topojson.feature(world, world.objects.countries).features;
+  // Countries — GeoJSON features array
+  const features = worldCache.features;
   const paths = svgSel.selectAll('.country')
     .data(features)
     .join('path')
@@ -640,14 +646,13 @@ function zoomOut() {
 }
 
 // ── LOAD ──────────────────────────────────────────────────────────────
-d3.json('countries-50m.json')
+d3.json('ne_countries.geojson')
   .then(buildMap)
   .catch(() => {
     document.getElementById('map-loading').classList.add('gone');
     document.getElementById('map-error').classList.add('shown');
   });
 
-// Redraw on resize
 let resizeTimer;
 window.addEventListener('resize', () => {
   clearTimeout(resizeTimer);
