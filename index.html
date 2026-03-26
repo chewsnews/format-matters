@@ -328,7 +328,8 @@ const CONFED = {
   SLE:'caf',SOM:'caf',ZAF:'caf',SSD:'caf',SDN:'caf',TZA:'caf',TGO:'caf',
   TUN:'caf',UGA:'caf',ZMB:'caf',ZWE:'caf',ESH:'caf',
   // AFC
-  AFG:'afc',BHR:'afc',BGD:'afc',BTN:'afc',BRN:'afc',KHM:'afc',CHN:'afc',
+  // AFC — add Australia
+  AUS:'afc',AFG:'afc',BHR:'afc',BGD:'afc',BTN:'afc',BRN:'afc',KHM:'afc',CHN:'afc',
   IND:'afc',IDN:'afc',IRN:'afc',IRQ:'afc',JPN:'afc',JOR:'afc',KAZ:'afc',
   KWT:'afc',KGZ:'afc',LAO:'afc',LBN:'afc',MYS:'afc',MDV:'afc',MNG:'afc',
   MMR:'afc',NPL:'afc',PRK:'afc',OMN:'afc',PAK:'afc',PSE:'afc',PHL:'afc',
@@ -468,9 +469,7 @@ const NUMERIC = {
   634:'afc',682:'afc',702:'afc',410:'afc',144:'afc',760:'afc',158:'afc',
   762:'afc',764:'afc',626:'afc',795:'afc',784:'afc',860:'afc',704:'afc',
   887:'afc',376:'afc',344:'afc',446:'afc',36:'afc',
-  // AFC ISO codes — add Australia
-  AUS:'afc',
-  // OFC — remove Australia (36), keep rest
+  // OFC — Australia (36) is in AFC above
   554:'ofc',598:'ofc',242:'ofc',90:'ofc',548:'ofc',882:'ofc',
   776:'ofc',798:'ofc',583:'ofc',584:'ofc',585:'ofc',520:'ofc',316:'ofc',
   580:'ofc',184:'ofc',570:'ofc',772:'ofc',876:'ofc',258:'ofc',16:'ofc',
@@ -556,19 +555,17 @@ function renderZoomed(confedId) {
   document.getElementById('back-btn').classList.add('visible');
   document.getElementById('zoom-hint').textContent = 'Hover over a country · Click to explore';
 
-  // UEFA gets a clipped view — just continental Europe, no Russia's far east or overseas territories
+  // UEFA gets a clipped view — just continental Europe, no Russia far east or overseas territories
   const UEFA_CLIP = { type: 'Feature', geometry: { type: 'Polygon', coordinates: [[
     [-25, 34], [45, 34], [45, 72], [-25, 72], [-25, 34]
   ]]}, properties: {} };
 
-  // Build a GeoJSON collection of just this confederation's features
-  const features = worldCache.features.filter(d => getConfed(d) === confedId);
-  const collection = confedId === 'uefa'
-    ? UEFA_CLIP
-    : { type: 'FeatureCollection', features };
-
   const pad = 20;
-  projFn = d3.geoNaturalEarth1().fitExtent([[pad, pad],[W - pad, H - pad]], collection);
+  const fitTarget = confedId === 'uefa'
+    ? UEFA_CLIP
+    : { type: 'FeatureCollection', features: worldCache.features.filter(d => getConfed(d) === confedId) };
+
+  projFn = d3.geoNaturalEarth1().fitExtent([[pad, pad],[W - pad, H - pad]], fitTarget);
   pathFn = d3.geoPath().projection(projFn);
   drawMap(worldCache, true, confedId);
 }
