@@ -523,16 +523,6 @@ function getConfed(d) {
   return null;
 }
 
-// ── ZOOM BOUNDS per confederation (lon1, lat1, lon2, lat2) ────────────
-const CONFED_BOUNDS = {
-  uefa:     { lon1: -25, lat1:  34, lon2:  45, lat2:  72 },
-  concacaf: { lon1:-170, lat1:   7, lon2: -52, lat2:  84 },
-  conmebol: { lon1: -82, lat1: -56, lon2: -34, lat2:  13 },
-  caf:      { lon1: -18, lat1: -35, lon2:  52, lat2:  38 },
-  afc:      { lon1:  26, lat1: -12, lon2: 146, lat2:  55 },
-  ofc:      { lon1: 130, lat1: -48, lon2:-175, lat2:  -2 },
-};
-
 let zoomed = false;
 let worldCache = null;
 let svgSel, pathFn, projFn, W, H;
@@ -563,22 +553,12 @@ function renderZoomed(confedId) {
   document.getElementById('back-btn').classList.add('visible');
   document.getElementById('zoom-hint').textContent = 'Hover over a country · Click to explore';
 
-  const b = CONFED_BOUNDS[confedId];
-  // fit projection to bounding box
-  const pad = 30;
-  const cx = (b.lon1 + b.lon2) / 2;
-  const cy = (b.lat1 + b.lat2) / 2;
-  const dLon = Math.abs(b.lon2 - b.lon1);
-  const dLat = Math.abs(b.lat2 - b.lat1);
-  const scale = Math.min((W - pad * 2) / (dLon * (Math.PI / 180) * 6371 * Math.cos(cy * Math.PI / 180) / 111),
-                         (H - pad * 2) / (dLat * 111 / 111)) * 60;
-  // simpler: use fitSize
-  const bb = [[b.lon1, b.lat1], [b.lon2, b.lat2]];
-  const geoBox = { type: 'Feature', geometry: { type: 'Polygon', coordinates: [[
-    [b.lon1, b.lat1],[b.lon2, b.lat1],[b.lon2, b.lat2],[b.lon1, b.lat2],[b.lon1, b.lat1]
-  ]]}, properties: {} };
+  // Build a GeoJSON collection of just this confederation's features
+  const features = worldCache.features.filter(d => getConfed(d) === confedId);
+  const collection = { type: 'FeatureCollection', features };
 
-  projFn = d3.geoNaturalEarth1().fitExtent([[pad, pad],[W - pad, H - pad]], geoBox);
+  const pad = 20;
+  projFn = d3.geoNaturalEarth1().fitExtent([[pad, pad],[W - pad, H - pad]], collection);
   pathFn = d3.geoPath().projection(projFn);
   drawMap(worldCache, true, confedId);
 }
