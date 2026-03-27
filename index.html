@@ -555,17 +555,21 @@ function renderZoomed(confedId) {
   document.getElementById('back-btn').classList.add('visible');
   document.getElementById('zoom-hint').textContent = 'Hover over a country · Click to explore';
 
-  // UEFA gets a clipped view — just continental Europe, no Russia far east or overseas territories
-  const UEFA_CLIP = { type: 'Feature', geometry: { type: 'Polygon', coordinates: [[
-    [-25, 34], [45, 34], [45, 72], [-25, 72], [-25, 34]
-  ]]}, properties: {} };
+  // Per-confederation explicit projection: [centerLon, centerLat, scale multiplier]
+  const ZOOM = {
+    uefa:     { center: [15,  52], scale: W * 1.8  },
+    concacaf: { center: [-95, 40], scale: W * 1.1  },
+    conmebol: { center: [-58,-15], scale: W * 1.4  },
+    caf:      { center: [ 22,  2], scale: W * 1.3  },
+    afc:      { center: [ 90, 30], scale: W * 0.95 },
+    ofc:      { center: [160,-25], scale: W * 2.0  },
+  };
 
-  const pad = 20;
-  const fitTarget = confedId === 'uefa'
-    ? UEFA_CLIP
-    : { type: 'FeatureCollection', features: worldCache.features.filter(d => getConfed(d) === confedId) };
-
-  projFn = d3.geoNaturalEarth1().fitExtent([[pad, pad],[W - pad, H - pad]], fitTarget);
+  const z = ZOOM[confedId];
+  projFn = d3.geoNaturalEarth1()
+    .scale(z.scale)
+    .center(z.center)
+    .translate([W / 2, H / 2]);
   pathFn = d3.geoPath().projection(projFn);
   drawMap(worldCache, true, confedId);
 }
