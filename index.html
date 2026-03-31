@@ -623,10 +623,60 @@ function drawMap(world, isZoomed, activeConfed) {
       const c = getConfed(d);
       return c === activeConfed ? 0.55 : 0.1;
     });
-
-
-
+  // Confederation labels — world view only
+  const CONFED_LABEL_COORDS = {
+    uefa:     [  15,  52 ],
+    concacaf: [ -98,  38 ],
+    conmebol: [ -58, -15 ],
+    caf:      [  22,   5 ],
+    afc:      [  88,  35 ],
+    ofc:      [ 148, -28 ],
+  };
   if (!isZoomed) {
+    Object.entries(CONFED_LABEL_COORDS).forEach(([id, coords]) => {
+      const pt = projFn(coords);
+      if (!pt) return;
+      svgSel.append('text')
+        .attr('x', pt[0]).attr('y', pt[1])
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'middle')
+        .style('font-family', 'DM Sans, sans-serif')
+        .style('font-size', '9px')
+        .style('font-weight', '500')
+        .style('letter-spacing', '0.12em')
+        .style('text-transform', 'uppercase')
+        .style('fill', COLORS[id])
+        .style('opacity', '0.5')
+        .style('pointer-events', 'none')
+        .text(id.toUpperCase());
+    });
+  }
+
+  // Country labels — zoomed view only
+  if (isZoomed) {
+    const labelFeatures = worldCache.features.filter(d => getConfed(d) === activeConfed);
+    svgSel.selectAll('.country-label')
+      .data(labelFeatures)
+      .join('text')
+      .attr('class', 'country-label')
+      .attr('x', d => { const c = pathFn.centroid(d); return c[0] || 0; })
+      .attr('y', d => { const c = pathFn.centroid(d); return c[1] || 0; })
+      .attr('text-anchor', 'middle')
+      .attr('dominant-baseline', 'middle')
+      .style('font-family', 'DM Sans, sans-serif')
+      .style('font-size', '8px')
+      .style('font-weight', '400')
+      .style('letter-spacing', '0.04em')
+      .style('fill', 'rgba(255,255,255,0.75)')
+      .style('pointer-events', 'none')
+      .style('text-shadow', '0 1px 3px rgba(0,0,0,0.8)')
+      .text(d => {
+        const p = d.properties;
+        return p.NAME_EN || p.NAME || p.name || '';
+      });
+  }
+
+
     // WORLD VIEW — hover highlights whole confederation, click = panel, dblclick = zoom
     let clickTimer = null;
     paths
