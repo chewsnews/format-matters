@@ -536,53 +536,24 @@ function buildMap(geojson) {
   W = Math.max(wrap.clientWidth,  wrap.offsetWidth,  500);
   H = Math.max(wrap.clientHeight, wrap.offsetHeight, 400);
   svgSel = d3.select('#map-svg').attr('viewBox', `0 0 ${W} ${H}`);
+
+  // Create label overlay div
+  if (!document.getElementById('label-overlay')) {
+    const overlay = document.createElement('div');
+    overlay.id = 'label-overlay';
+    overlay.style.cssText = 'position:absolute;inset:0;pointer-events:none;overflow:hidden;';
+    document.getElementById('map-wrap').appendChild(overlay);
+  }
+
+  // World projection (fixed, never changes)
+  projFn = d3.geoNaturalEarth1().scale(W / 6.3).translate([W / 2, H / 2]);
+  pathFn = d3.geoPath().projection(projFn);
+
+  drawBaseMap();
   renderWorld();
 }
 
-function renderWorld() {
-  zoomed = false;
-  document.getElementById('back-btn').classList.remove('visible');
-  document.getElementById('zoom-hint').textContent = 'Click a confederation · Double-click to zoom in';
-  document.querySelectorAll('.leg').forEach(l => l.classList.remove('active'));
-
-  projFn = d3.geoNaturalEarth1().scale(W / 6.3).translate([W / 2, H / 2]);
-  pathFn = d3.geoPath().projection(projFn);
-  drawMap(worldCache, false);
-}
-
-function renderZoomed(confedId) {
-  zoomed = true;
-  document.getElementById('back-btn').classList.add('visible');
-  document.getElementById('zoom-hint').textContent = 'Hover over a country · Click to explore';
-
-  const pad = 20;
-  let fitTarget = null;
-
-  if (confedId === 'uefa') {
-    projFn = d3.geoNaturalEarth1()
-      .scale(W * 0.9)
-      .center([15, 52])
-      .translate([W / 2, H / 2]);
-  } else if (confedId === 'concacaf') {
-    projFn = d3.geoNaturalEarth1()
-      .scale(W * 0.75)
-      .center([-88, 25])
-      .translate([W / 2, H / 2]);
-  } else if (confedId === 'ofc') {
-    projFn = d3.geoNaturalEarth1()
-      .scale(W * 1.0)
-      .center([160, -25])
-      .translate([W / 2, H / 2]);
-  } else {
-    fitTarget = { type: 'FeatureCollection', features: worldCache.features.filter(d => getConfed(d) === confedId) };
-    projFn = d3.geoNaturalEarth1().fitExtent([[pad, pad],[W - pad, H - pad]], fitTarget);
-  }
-
-  pathFn = d3.geoPath().projection(projFn);
-  drawMap(worldCache, true, confedId);
-}
-
-function drawMap(world, isZoomed, activeConfed) {
+function drawBaseMap() {
   svgSel.selectAll('*').remove();
 
   // Ocean
@@ -596,34 +567,29 @@ function drawMap(world, isZoomed, activeConfed) {
     .datum({ type: 'LineString', coordinates: d3.range(-180, 181).map(d => [d, 0]) })
     .attr('class', 'equator').attr('d', pathFn);
 
-  // Ocean labels (world view only)
-  if (!isZoomed) {
-    [
-      { t: 'Pacific Ocean',   c: [-150,  5] },
-      { t: 'Atlantic Ocean',  c: [ -30,  5] },
-      { t: 'Indian Ocean',    c: [  75,-25] },
-      { t: 'Arctic Ocean',    c: [  20, 82] },
-      { t: 'Southern Ocean',  c: [  20,-62] },
-    ].forEach(({ t, c }) => {
-      const pt = projFn(c);
-      if (pt) svgSel.append('text').attr('class', 'ocean-lbl').attr('x', pt[0]).attr('y', pt[1]).text(t);
-    });
-  }
+  // Ocean labels
+  [
+    { t: 'Pacific Ocean',   c: [-150,  5] },
+    { t: 'Atlantic Ocean',  c: [ -30,  5] },
+    { t: 'Indian Ocean',    c: [  75,-25] },
+    { t: 'Arctic Ocean',    c: [  20, 82] },
+    { t: 'Southern Ocean',  c: [  20,-62] },
+  ].forEach(({ t, c }) => {
+    const pt = projFn(c);
+    if (pt) svgSel.append('text').attr('class', 'ocean-lbl').attr('x', pt[0]).attr('y', pt[1]).text(t);
+  });
 
-  // Countries — GeoJSON features array
+  // Countries
   const features = worldCache.features;
-  const paths = svgSel.selectAll('.country')
+  svgSel.selectAll('.country')
     .data(features)
     .join('path')
     .attr('class', d => `country c-${getConfed(d) || 'none'}`)
     .attr('d', pathFn)
     .style('fill', d => { const c = getConfed(d); return c ? COLORS[c] : '#252525'; })
-    .style('opacity', d => {
-      if (!isZoomed) return 0.48;
-      const c = getConfed(d);
-      return c === activeConfed ? 0.55 : 0.1;
-    });
-  // Confederation labels — world view only
+    .style('opacity', 0.48);
+
+  // Confederation labels
   const CONFED_LABEL_COORDS = {
     uefa:     [  15,  52 ],
     concacaf: [ -98,  38 ],
@@ -632,104 +598,187 @@ function drawMap(world, isZoomed, activeConfed) {
     afc:      [  88,  35 ],
     ofc:      [ 148, -28 ],
   };
-  if (!isZoomed) {
-    Object.entries(CONFED_LABEL_COORDS).forEach(([id, coords]) => {
-      const pt = projFn(coords);
-      if (!pt) return;
-      svgSel.append('text')
-        .attr('x', pt[0]).attr('y', pt[1])
-        .attr('text-anchor', 'middle')
-        .attr('dominant-baseline', 'middle')
-        .style('font-family', 'DM Sans, sans-serif')
-        .style('font-size', '9px')
-        .style('font-weight', '500')
-        .style('letter-spacing', '0.12em')
-        .style('text-transform', 'uppercase')
-        .style('fill', COLORS[id])
-        .style('opacity', '0.5')
-        .style('pointer-events', 'none')
-        .text(id.toUpperCase());
-    });
-  }
-
-  // Country labels — zoomed view only
-  if (isZoomed) {
-    const labelFeatures = worldCache.features.filter(d => getConfed(d) === activeConfed);
-    svgSel.selectAll('.country-label')
-      .data(labelFeatures)
-      .join('text')
-      .attr('class', 'country-label')
-      .attr('x', d => { const c = pathFn.centroid(d); return c[0] || 0; })
-      .attr('y', d => { const c = pathFn.centroid(d); return c[1] || 0; })
-      .attr('text-anchor', 'middle')
-      .attr('dominant-baseline', 'middle')
+  Object.entries(CONFED_LABEL_COORDS).forEach(([id, coords]) => {
+    const pt = projFn(coords);
+    if (!pt) return;
+    svgSel.append('text')
+      .attr('class', 'confed-lbl')
+      .attr('x', pt[0]).attr('y', pt[1])
+      .attr('text-anchor', 'middle').attr('dominant-baseline', 'middle')
       .style('font-family', 'DM Sans, sans-serif')
-      .style('font-weight', '400')
-      .style('letter-spacing', '0.04em')
-      .style('fill', 'rgba(255,255,255,0.78)')
+      .style('font-size', '9px').style('font-weight', '500')
+      .style('letter-spacing', '0.12em').style('text-transform', 'uppercase')
+      .style('fill', COLORS[id]).style('opacity', '0.5')
       .style('pointer-events', 'none')
-      .style('font-size', d => {
-        const area = pathFn.area(d);
-        // Map area in px² to font size: clamp between 6px and 16px
-        const size = Math.sqrt(area) * 0.18;
-        return `${Math.min(16, Math.max(6, size)).toFixed(1)}px`;
-      })
-      .text(d => {
-        // Only show label if country is large enough to be readable
-        const area = pathFn.area(d);
-        if (area < 80) return '';
-        const p = d.properties;
-        return p.NAME_EN || p.NAME || p.name || '';
-      });
-  }
+      .text(id.toUpperCase());
+  });
 
-
-  if (!isZoomed) {
-    // WORLD VIEW — hover highlights whole confederation, click = panel, dblclick = zoom
-    let clickTimer = null;
-    paths
-      .on('mouseover', function(event, d) {
+  // Interactions
+  let clickTimer = null;
+  svgSel.selectAll('.country')
+    .on('mouseover', function(event, d) {
+      if (zoomed) {
+        const c = getConfed(d);
+        if (c !== current) return;
+        d3.select(this).style('opacity', 1);
+      } else {
         const c = getConfed(d);
         if (!c) return;
         svgSel.selectAll('.country').style('opacity', dd => {
           const dc = getConfed(dd);
           return dc === c ? 0.88 : (dc ? 0.2 : 0.1);
         });
-      })
-      .on('mouseout', function() {
+        svgSel.selectAll('.confed-lbl').style('opacity', function() {
+          return d3.select(this).text() === c.toUpperCase() ? 0.9 : 0.1;
+        });
+      }
+    })
+    .on('mouseout', function(event, d) {
+      if (zoomed) {
+        const c = getConfed(d);
+        d3.select(this).style('opacity', c === current ? 0.65 : 0.1);
+      } else {
         svgSel.selectAll('.country').style('opacity', 0.48);
-      })
-      .on('click', function(event, d) {
-        const c = getConfed(d);
-        if (!c) return;
-        // debounce: wait to see if this becomes a dblclick
-        if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; return; }
-        clickTimer = setTimeout(() => { clickTimer = null; select(c); }, 220);
-      })
-      .on('dblclick', function(event, d) {
-        if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
-        const c = getConfed(d);
-        if (!c) return;
-        select(c);
-        renderZoomed(c);
-      });
-  } else {
-    // ZOOMED VIEW — hover highlights individual country, click = panel for that confed
-    paths
-      .on('mouseover', function(event, d) {
-        const c = getConfed(d);
-        if (c !== activeConfed) return;
-        d3.select(this).style('opacity', 1);
-      })
-      .on('mouseout', function(event, d) {
-        const c = getConfed(d);
-        d3.select(this).style('opacity', c === activeConfed ? 0.55 : 0.1);
-      })
-      .on('click', function(event, d) {
-        const c = getConfed(d);
-        if (c) select(c);
-      });
-  }
+        svgSel.selectAll('.confed-lbl').style('opacity', 0.5);
+      }
+    })
+    .on('click', function(event, d) {
+      const c = getConfed(d);
+      if (!c) return;
+      if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; return; }
+      clickTimer = setTimeout(() => { clickTimer = null; select(c); }, 220);
+    })
+    .on('dblclick', function(event, d) {
+      if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
+      const c = getConfed(d);
+      if (!c) return;
+      select(c);
+      renderZoomed(c);
+    });
+}
+
+function renderWorld() {
+  zoomed = false;
+  current = null;
+  document.getElementById('back-btn').classList.remove('visible');
+  document.getElementById('zoom-hint').textContent = 'Click a confederation · Double-click to zoom in';
+  document.querySelectorAll('.leg').forEach(l => l.classList.remove('active'));
+
+  // Reset SVG transform with animation
+  svgSel.style('transform', 'scale(1) translate(0px, 0px)')
+        .style('transform-origin', 'center center')
+        .style('transition', 'transform 0.5s cubic-bezier(0.4,0,0.2,1)');
+
+  // Reset country opacity
+  svgSel.selectAll('.country').style('opacity', 0.48);
+  svgSel.selectAll('.confed-lbl').style('opacity', 0.5).style('display', null);
+  svgSel.selectAll('.ocean-lbl').style('opacity', 1);
+
+  // Clear labels
+  clearLabels();
+}
+
+function renderZoomed(confedId) {
+  zoomed = true;
+  document.getElementById('back-btn').classList.add('visible');
+  document.getElementById('zoom-hint').textContent = 'Hover over a country · Click to explore';
+
+  // Compute zoom transform: find the bounding box of this confederation's paths
+  const confedFeatures = worldCache.features.filter(d => getConfed(d) === confedId);
+
+  // Get bounds in SVG space using current world projection
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  confedFeatures.forEach(f => {
+    const bounds = pathFn.bounds(f);
+    if (!isFinite(bounds[0][0])) return;
+    minX = Math.min(minX, bounds[0][0]);
+    minY = Math.min(minY, bounds[0][1]);
+    maxX = Math.max(maxX, bounds[1][0]);
+    maxY = Math.max(maxY, bounds[1][1]);
+  });
+
+  // Override bounds for confederations that need cropping
+  if (confedId === 'uefa')     { minX = projFn([-25,34])[0]; maxX = projFn([45,72])[0]; minY = projFn([15,72])[1]; maxY = projFn([15,34])[1]; }
+  if (confedId === 'concacaf') { minX = projFn([-170,7])[0]; maxX = projFn([-55,7])[0]; minY = projFn([-90,50])[1]; maxY = projFn([-90,7])[1]; }
+  if (confedId === 'ofc')      { minX = projFn([110,-50])[0]; maxX = projFn([180,-50])[0]; minY = projFn([150,-50])[1]; maxY = projFn([150,0])[1]; }
+
+  const pad = 24;
+  const bW = maxX - minX;
+  const bH = maxY - minY;
+  const scale = Math.min((W - pad * 2) / bW, (H - pad * 2) / bH);
+  const cx = (minX + maxX) / 2;
+  const cy = (minY + maxY) / 2;
+  const tx = (W / 2 - cx * scale);
+  const ty = (H / 2 - cy * scale);
+
+  // Animate SVG transform
+  svgSel
+    .style('transform-origin', '0 0')
+    .style('transition', 'transform 0.55s cubic-bezier(0.4,0,0.2,1)')
+    .style('transform', `translate(${tx}px, ${ty}px) scale(${scale})`);
+
+  // Dim non-confederation countries
+  svgSel.selectAll('.country').style('opacity', d => {
+    const c = getConfed(d);
+    return c === confedId ? 0.65 : 0.08;
+  });
+  svgSel.selectAll('.confed-lbl').style('display', 'none');
+  svgSel.selectAll('.ocean-lbl').style('opacity', 0);
+
+  // Place HTML labels after transition
+  setTimeout(() => placeLabels(confedId, scale, tx, ty), 580);
+}
+
+function placeLabels(confedId, scale, tx, ty) {
+  clearLabels();
+  const overlay = document.getElementById('label-overlay');
+  const confedFeatures = worldCache.features.filter(d => getConfed(d) === confedId);
+  const FONT_MIN = 9, FONT_MAX = 18;
+
+  confedFeatures.forEach(f => {
+    const area = pathFn.area(f);
+    if (area < 60) return; // skip tiny countries
+
+    const centroid = pathFn.centroid(f);
+    if (!centroid || !isFinite(centroid[0])) return;
+
+    // Transform centroid from SVG space to screen space
+    const screenX = centroid[0] * scale + tx;
+    const screenY = centroid[1] * scale + ty;
+
+    // Skip if off screen
+    if (screenX < 0 || screenX > W || screenY < 0 || screenY > H) return;
+
+    const fontSize = Math.min(FONT_MAX, Math.max(FONT_MIN, Math.sqrt(area * scale * scale) * 0.12));
+
+    const p = f.properties;
+    const name = p.NAME_EN || p.NAME || p.name || '';
+    if (!name) return;
+
+    const el = document.createElement('div');
+    el.className = 'map-label';
+    el.textContent = name;
+    el.style.cssText = `
+      position: absolute;
+      left: ${screenX}px;
+      top: ${screenY}px;
+      transform: translate(-50%, -50%);
+      font-family: 'DM Sans', sans-serif;
+      font-size: ${fontSize.toFixed(1)}px;
+      font-weight: 400;
+      letter-spacing: 0.04em;
+      color: rgba(255,255,255,0.82);
+      text-shadow: 0 1px 3px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.6);
+      white-space: nowrap;
+      pointer-events: none;
+    `;
+    overlay.appendChild(el);
+  });
+}
+
+function clearLabels() {
+  const overlay = document.getElementById('label-overlay');
+  if (overlay) overlay.innerHTML = '';
 }
 
 function zoomOut() {
@@ -753,6 +802,7 @@ window.addEventListener('resize', () => {
     W = Math.max(wrap.clientWidth, wrap.offsetWidth, 500);
     H = Math.max(wrap.clientHeight, wrap.offsetHeight, 400);
     svgSel.attr('viewBox', `0 0 ${W} ${H}`);
+    drawBaseMap();
     zoomed ? renderZoomed(current) : renderWorld();
   }, 250);
 });
